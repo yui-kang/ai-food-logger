@@ -1,102 +1,64 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import axios from "axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Navbar from "@/components/Navbar"
-import { Search, Calendar, TrendingUp } from "lucide-react"
-
-// Mock data - in the future this would come from a database
-const mockFoodLogs = [
-  {
-    id: 1,
-    date: "2026-02-03",
-    time: "12:30 PM",
-    raw_text: "Grilled chicken salad with avocado and olive oil dressing",
-    mood_analysis: "energetic",
-    total_calories: 520,
-    total_protein: 38,
-    total_carbs: 12,
-    total_fat: 35,
-    items: [
-      { name: "grilled chicken breast", quantity: "6oz", calories: 280 },
-      { name: "mixed greens", quantity: "2 cups", calories: 20 },
-      { name: "avocado", quantity: "1/2 medium", calories: 120 },
-      { name: "olive oil dressing", quantity: "2 tbsp", calories: 100 }
-    ]
-  },
-  {
-    id: 2,
-    date: "2026-02-03",
-    time: "8:00 AM",
-    raw_text: "Oatmeal with blueberries and a coffee",
-    mood_analysis: "sleepy but content",
-    total_calories: 285,
-    total_protein: 8,
-    total_carbs: 54,
-    total_fat: 4,
-    items: [
-      { name: "oatmeal", quantity: "1 cup cooked", calories: 150 },
-      { name: "blueberries", quantity: "1/2 cup", calories: 40 },
-      { name: "coffee", quantity: "1 cup", calories: 5 },
-      { name: "milk", quantity: "2 tbsp", calories: 20 }
-    ]
-  },
-  {
-    id: 3,
-    date: "2026-02-02",
-    time: "7:15 PM",
-    raw_text: "Pizza slice and a beer while watching the game",
-    mood_analysis: "relaxed, social",
-    total_calories: 450,
-    total_protein: 18,
-    total_carbs: 35,
-    total_fat: 25,
-    items: [
-      { name: "pizza slice (pepperoni)", quantity: "1 large slice", calories: 300 },
-      { name: "beer", quantity: "12oz", calories: 150 }
-    ]
-  },
-  {
-    id: 4,
-    date: "2026-02-02",
-    time: "1:00 PM",
-    raw_text: "Turkey sandwich and chips from the deli",
-    mood_analysis: "rushed, hungry",
-    total_calories: 680,
-    total_protein: 32,
-    total_carbs: 58,
-    total_fat: 32,
-    items: [
-      { name: "turkey sandwich", quantity: "1 whole", calories: 520 },
-      { name: "potato chips", quantity: "small bag", calories: 160 }
-    ]
-  }
-]
+import { Search, Calendar, TrendingUp, Loader2 } from "lucide-react"
 
 export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedMood, setSelectedMood] = useState<string | null>(null)
+  const [foodLogs, setFoodLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch food history from API
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoading(true)
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+        const response = await axios.get(`${apiUrl}/history`)
+        
+        if (response.data.status === "success") {
+          setFoodLogs(response.data.data || [])
+        } else {
+          setError("Failed to load history")
+        }
+      } catch (err: any) {
+        console.error("History fetch error:", err)
+        setError(err.response?.data?.error || "Failed to load history")
+        // Fallback to empty array instead of mock data
+        setFoodLogs([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchHistory()
+  }, [])
   
   // Filter logs based on search and mood
-  const filteredLogs = mockFoodLogs.filter(log => {
-    const matchesSearch = log.raw_text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         log.items.some(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    const matchesMood = !selectedMood || log.mood_analysis.includes(selectedMood)
+  const filteredLogs = foodLogs.filter(log => {
+    const matchesSearch = log.raw_text?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         log.items?.some((item: any) => item.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+    const matchesMood = !selectedMood || log.mood_analysis?.includes(selectedMood)
     return matchesSearch && matchesMood
   })
 
   // Get unique moods for filtering
-  const allMoods = [...new Set(mockFoodLogs.map(log => log.mood_analysis))]
+  const allMoods = [...new Set(foodLogs.map(log => log.mood_analysis).filter(Boolean))]
   
   // Calculate daily totals
-  const dailyTotals = mockFoodLogs.reduce((acc, log) => {
+  const dailyTotals = foodLogs.reduce((acc, log) => {
     if (!acc[log.date]) {
       acc[log.date] = { calories: 0, count: 0 }
     }
-    acc[log.date].calories += log.total_calories
+    acc[log.date].calories += log.total_calories || 0
     acc[log.date].count += 1
     return acc
   }, {} as Record<string, { calories: number, count: number }>)
@@ -123,7 +85,7 @@ export default function HistoryPage() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{mockFoodLogs.length}</div>
+                <div className="text-2xl font-bold">{loading ? "..." : foodLogs.length}</div>
                 <p className="text-xs text-muted-foreground">Logged meals</p>
               </CardContent>
             </Card>
@@ -187,9 +149,26 @@ export default function HistoryPage() {
             </div>
           </div>
 
+          {/* Loading State */}
+          {loading && (
+            <Card className="p-12 text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <p className="text-muted-foreground">Loading your food history...</p>
+            </Card>
+          )}
+
+          {/* Error State */}
+          {error && !loading && (
+            <Card className="p-12 text-center border-red-200 bg-red-50">
+              <p className="text-red-600 mb-2">Failed to load history</p>
+              <p className="text-sm text-red-500">{error}</p>
+            </Card>
+          )}
+
           {/* Food Log Entries */}
-          <div className="space-y-4">
-            {filteredLogs.map((log) => (
+          {!loading && !error && (
+            <div className="space-y-4">
+              {filteredLogs.map((log) => (
               <Card key={log.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -227,23 +206,31 @@ export default function HistoryPage() {
                   <div>
                     <h4 className="font-semibold mb-2 text-sm">Items:</h4>
                     <ul className="text-sm space-y-1">
-                      {log.items.map((item, index) => (
+                      {log.items?.map((item: any, index: number) => (
                         <li key={index} className="flex justify-between">
                           <span>{item.name} ({item.quantity})</span>
                           <span className="text-gray-500">{item.calories} cal</span>
                         </li>
-                      ))}
+                      )) || []}
                     </ul>
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-          
-          {filteredLogs.length === 0 && (
-            <Card className="p-12 text-center">
-              <p className="text-muted-foreground">No entries found matching your search.</p>
-            </Card>
+              ))}
+              
+              {filteredLogs.length === 0 && foodLogs.length > 0 && (
+                <Card className="p-12 text-center">
+                  <p className="text-muted-foreground">No entries found matching your search.</p>
+                </Card>
+              )}
+              
+              {foodLogs.length === 0 && !loading && !error && (
+                <Card className="p-12 text-center">
+                  <p className="text-muted-foreground mb-2">No food logs yet!</p>
+                  <p className="text-sm text-gray-500">Start by logging your first meal.</p>
+                </Card>
+              )}
+            </div>
           )}
 
         </div>
