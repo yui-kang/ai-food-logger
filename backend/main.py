@@ -49,6 +49,16 @@ async def log_food(entry: FoodLogEntry):
             # In production, this would come from JWT token
             default_user_id = "00000000-0000-0000-0000-000000000001"
             
+            # Ensure default user exists in profiles (for RLS)
+            try:
+                supabase.table("profiles").upsert({
+                    "id": default_user_id,
+                    "email": "default@foodcoin.app",
+                    "full_name": "Default User"
+                }).execute()
+            except:
+                pass  # User might already exist
+            
             food_log_data = {
                 "user_id": default_user_id,
                 "raw_input": entry.raw_text,
@@ -71,7 +81,12 @@ async def log_food(entry: FoodLogEntry):
             
         except Exception as e:
             print(f"❌ Database save failed: {e}")
+            print(f"❌ Food log data: {food_log_data}")
             # Don't fail the request if database save fails
+    else:
+        print("❌ Supabase not configured - missing SUPABASE_URL or SUPABASE_KEY")
+        print(f"SUPABASE_URL set: {bool(url)}")
+        print(f"SUPABASE_KEY set: {bool(key)}")
     
     # Return response (same format as before)
     response_data = {
@@ -120,6 +135,19 @@ async def get_food_history():
     except Exception as e:
         print(f"❌ History fetch failed: {e}")
         return {"error": f"Failed to fetch history: {str(e)}"}
+
+@app.get("/test-db")
+async def test_database():
+    """Test database connection"""
+    if not supabase:
+        return {"status": "error", "message": "Supabase not configured"}
+    
+    try:
+        # Try a simple select to test connection
+        result = supabase.table("food_logs").select("id").limit(1).execute()
+        return {"status": "success", "message": "Database connected", "data": result.data}
+    except Exception as e:
+        return {"status": "error", "message": f"Database error: {str(e)}"}
 
 @app.get("/health")
 def health_check():
