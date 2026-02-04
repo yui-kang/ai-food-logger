@@ -20,8 +20,13 @@ export default function LogPage() {
     setResult(null)
 
     try {
+      // Debug: Log the API URL being used
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      console.log("🐛 API URL:", apiUrl)
+      console.log("🐛 Full endpoint:", `${apiUrl}/log/food`)
+      
       // Direct call to backend
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/log/food`, {
+      const response = await axios.post(`${apiUrl}/log/food`, {
         raw_text: input,
         mood_rating: 5 // Default for now
       })
@@ -29,8 +34,9 @@ export default function LogPage() {
       setResult(response.data)
       toast.success("Meal logged successfully!")
     } catch (error) {
-      console.error(error)
-      toast.error("Failed to log meal. Is the backend running?")
+      console.error("🚨 API Error:", error)
+      console.error("🚨 Error details:", error.response?.data || error.message)
+      toast.error(`Failed to log meal: ${error.response?.status || error.message}`)
     } finally {
       setLoading(false)
     }
