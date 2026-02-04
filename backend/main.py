@@ -11,15 +11,11 @@ load_dotenv()
 
 app = FastAPI(title="AI Food Logger API")
 
-# CORS Setup (Allow Frontend)
+# CORS Setup (Allow Frontend) - Permissive for now
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app$",  # All Vercel deployments
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins temporarily
+    allow_credentials=False,  # Must be False when allow_origins is "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
