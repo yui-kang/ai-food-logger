@@ -23,14 +23,14 @@ export default function Navbar() {
             AI Food Logger
           </Link>
           {user && (
-            <div className="hidden md:flex gap-4">
-              <Link href="/" className="text-sm font-medium hover:text-primary">
+            <div className="flex gap-2 md:gap-4">
+              <Link href="/" className="text-xs md:text-sm font-medium hover:text-primary">
                 Dashboard
               </Link>
-              <Link href="/log" className="text-sm font-medium hover:text-primary">
+              <Link href="/log" className="text-xs md:text-sm font-medium hover:text-primary">
                 Log Food
               </Link>
-              <Link href="/history" className="text-sm font-medium hover:text-primary">
+              <Link href="/history" className="text-xs md:text-sm font-medium hover:text-primary">
                 History
               </Link>
             </div>
