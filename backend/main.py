@@ -12,17 +12,13 @@ load_dotenv()
 app = FastAPI(title="AI Food Logger API")
 
 # CORS Setup (Allow Frontend)
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://ai-food-logger.vercel.app",  # Production frontend
-    os.environ.get("FRONTEND_URL", ""),  # Additional frontend URL from env
-]
-origins = [o for o in origins if o]  # Remove empty strings
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app$",  # All Vercel deployments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
