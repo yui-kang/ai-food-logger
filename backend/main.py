@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import os
-import jwt
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,39 +34,31 @@ class FoodLogEntry(BaseModel):
     mood_rating: Optional[int] = None
 
 def verify_token(authorization: Optional[str] = Header(None)) -> str:
-    """Extract and verify JWT token, return user_id"""
+    """Extract and verify JWT token using Supabase client, return user_id"""
     # Default user for backwards compatibility (if no auth header)
     default_user_id = "00000000-0000-0000-0000-000000000001"
     
-    if not authorization:
-        print("⚠️ No authorization header, using default user")
+    if not authorization or not supabase:
+        print("⚠️ No authorization header or Supabase not configured, using default user")
         return default_user_id
     
     try:
         # Extract token from "Bearer <token>"
         token = authorization.replace("Bearer ", "")
         
-        # Decode JWT token (Supabase uses HS256 with JWT secret)
-        jwt_secret = os.environ.get("SUPABASE_JWT_SECRET", "")
-        if not jwt_secret:
-            print("⚠️ No JWT secret configured, using default user")
-            return default_user_id
-            
-        payload = jwt.decode(token, jwt_secret, algorithms=["HS256"], audience="authenticated")
-        user_id = payload.get("sub")  # 'sub' contains the user ID
+        # Use Supabase to verify the token (modern approach)
+        response = supabase.auth.get_user(token)
+        user = response.user
         
-        if not user_id:
-            print("⚠️ No user ID in token, using default user")
+        if user and user.id:
+            print(f"✅ Authenticated user: {user.id}")
+            return user.id
+        else:
+            print("⚠️ Invalid token or no user, using default user")
             return default_user_id
-            
-        print(f"✅ Authenticated user: {user_id}")
-        return user_id
         
-    except jwt.ExpiredSignatureError:
-        print("⚠️ Token expired, using default user")
-        return default_user_id
-    except jwt.InvalidTokenError as e:
-        print(f"⚠️ Invalid token ({e}), using default user")
+    except Exception as e:
+        print(f"⚠️ Token verification failed ({e}), using default user")
         return default_user_id
 
 @app.get("/")
