@@ -179,7 +179,7 @@ async def test_database():
         return {"status": "error", "message": f"Database error: {str(e)}"}
 
 @app.put("/entries/{entry_id}")
-async def update_food_entry(entry_id: int, entry: FoodLogEntry, user_id: str = Depends(verify_token)):
+async def update_food_entry(entry_id: str, entry: FoodLogEntry, user_id: str = Depends(verify_token)):
     """Update an existing food log entry"""
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -212,7 +212,7 @@ async def update_food_entry(entry_id: int, entry: FoodLogEntry, user_id: str = D
         raise HTTPException(status_code=500, detail=f"Failed to update entry: {str(e)}")
 
 @app.delete("/entries/{entry_id}")
-async def delete_food_entry(entry_id: int, user_id: str = Depends(verify_token)):
+async def delete_food_entry(entry_id: str, user_id: str = Depends(verify_token)):
     """Delete a food log entry"""
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -234,7 +234,7 @@ async def delete_food_entry(entry_id: int, user_id: str = Depends(verify_token))
         raise HTTPException(status_code=500, detail=f"Failed to delete entry: {str(e)}")
 
 @app.post("/entries/{entry_id}/reanalyze")
-async def reanalyze_food_entry(entry_id: int, user_id: str = Depends(verify_token)):
+async def reanalyze_food_entry(entry_id: str, user_id: str = Depends(verify_token)):
     """Re-analyze an existing food log entry with AI"""
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
