@@ -15,7 +15,8 @@ app = FastAPI(title="AI Food Logger API")
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    os.environ.get("FRONTEND_URL", ""),  # Production frontend
+    "https://ai-food-logger.vercel.app",  # Production frontend
+    os.environ.get("FRONTEND_URL", ""),  # Additional frontend URL from env
 ]
 origins = [o for o in origins if o]  # Remove empty strings
 
