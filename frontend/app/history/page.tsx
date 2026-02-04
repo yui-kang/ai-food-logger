@@ -98,7 +98,7 @@ export default function HistoryPage() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {Object.keys(dailyTotals).length > 0 
-                    ? Math.round(Object.values(dailyTotals).reduce((sum, day: any) => sum + day.calories, 0) / Object.keys(dailyTotals).length)
+                    ? Math.round(Object.values(dailyTotals).reduce((sum: number, day: any) => sum + day.calories, 0) / Object.keys(dailyTotals).length)
                     : 0}
                 </div>
                 <p className="text-xs text-muted-foreground">Per day average</p>
