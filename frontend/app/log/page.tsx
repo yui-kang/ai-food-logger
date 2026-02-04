@@ -33,7 +33,7 @@ export default function LogPage() {
 
       setResult(response.data)
       toast.success("Meal logged successfully!")
-    } catch (error) {
+    } catch (error: any) {
       console.error("🚨 API Error:", error)
       console.error("🚨 Error details:", error.response?.data || error.message)
       toast.error(`Failed to log meal: ${error.response?.status || error.message}`)
