@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Navbar from "@/components/Navbar"
+import ProtectedRoute from "@/components/ProtectedRoute"
+import { useAuth } from "@/context/AuthContext"
+import { supabase } from "@/lib/supabase"
 import { Search, Calendar, TrendingUp, Loader2 } from "lucide-react"
 
 export default function HistoryPage() {
@@ -21,8 +24,17 @@ export default function HistoryPage() {
     const fetchHistory = async () => {
       try {
         setLoading(true)
+        
+        // Get auth token for API calls
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-        const response = await axios.get(`${apiUrl}/history`)
+        const response = await axios.get(`${apiUrl}/history`, {
+          headers: token ? {
+            'Authorization': `Bearer ${token}`
+          } : {}
+        })
         
         if (response.data.status === "success") {
           setFoodLogs(response.data.data || [])
@@ -64,9 +76,10 @@ export default function HistoryPage() {
   }, {} as Record<string, { calories: number, count: number }>)
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar />
-      <main className="container mx-auto py-10 px-4">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-slate-50">
+        <Navbar />
+        <main className="container mx-auto py-10 px-4">
         <div className="space-y-8">
           
           {/* Header */}
@@ -237,6 +250,7 @@ export default function HistoryPage() {
 
         </div>
       </main>
-    </div>
+      </div>
+    </ProtectedRoute>
   )
 }

@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import os
+import jwt
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,34 +34,67 @@ class FoodLogEntry(BaseModel):
     image_url: Optional[str] = None
     mood_rating: Optional[int] = None
 
+def verify_token(authorization: Optional[str] = Header(None)) -> str:
+    """Extract and verify JWT token, return user_id"""
+    # Default user for backwards compatibility (if no auth header)
+    default_user_id = "00000000-0000-0000-0000-000000000001"
+    
+    if not authorization:
+        print("⚠️ No authorization header, using default user")
+        return default_user_id
+    
+    try:
+        # Extract token from "Bearer <token>"
+        token = authorization.replace("Bearer ", "")
+        
+        # Decode JWT token (Supabase uses HS256 with JWT secret)
+        jwt_secret = os.environ.get("SUPABASE_JWT_SECRET", "")
+        if not jwt_secret:
+            print("⚠️ No JWT secret configured, using default user")
+            return default_user_id
+            
+        payload = jwt.decode(token, jwt_secret, algorithms=["HS256"], audience="authenticated")
+        user_id = payload.get("sub")  # 'sub' contains the user ID
+        
+        if not user_id:
+            print("⚠️ No user ID in token, using default user")
+            return default_user_id
+            
+        print(f"✅ Authenticated user: {user_id}")
+        return user_id
+        
+    except jwt.ExpiredSignatureError:
+        print("⚠️ Token expired, using default user")
+        return default_user_id
+    except jwt.InvalidTokenError as e:
+        print(f"⚠️ Invalid token ({e}), using default user")
+        return default_user_id
+
 @app.get("/")
 def read_root():
     return {"status": "ok", "service": "AI Food Logger Backend"}
 
 @app.post("/log/food")
-async def log_food(entry: FoodLogEntry):
+async def log_food(entry: FoodLogEntry, user_id: str = Depends(verify_token)):
     # Call LLM Service
     parsed_data = parse_food_entry(entry.raw_text)
     
     # Save to database if Supabase is configured
     if supabase:
         try:
-            # For now, we'll use a default user_id since auth isn't implemented yet
-            # In production, this would come from JWT token
-            default_user_id = "00000000-0000-0000-0000-000000000001"
-            
-            # Ensure default user exists in profiles (for RLS)
-            try:
-                supabase.table("profiles").upsert({
-                    "id": default_user_id,
-                    "email": "default@foodcoin.app",
-                    "full_name": "Default User"
-                }).execute()
-            except:
-                pass  # User might already exist
+            # Ensure user exists in profiles (for RLS) - for default user only
+            if user_id == "00000000-0000-0000-0000-000000000001":
+                try:
+                    supabase.table("profiles").upsert({
+                        "id": user_id,
+                        "email": "default@foodcoin.app",
+                        "full_name": "Default User"
+                    }).execute()
+                except:
+                    pass  # User might already exist
             
             food_log_data = {
-                "user_id": default_user_id,
+                "user_id": user_id,
                 "raw_input": entry.raw_text,
                 "image_url": entry.image_url,
                 "parsed_content": {
@@ -98,16 +132,13 @@ async def log_food(entry: FoodLogEntry):
     return response_data
 
 @app.get("/history")
-async def get_food_history():
+async def get_food_history(user_id: str = Depends(verify_token)):
     """Get food log history from database"""
     if not supabase:
         return {"error": "Database not configured"}
     
     try:
-        # For now, use default user_id since auth isn't implemented
-        default_user_id = "00000000-0000-0000-0000-000000000001"
-        
-        result = supabase.table("food_logs").select("*").eq("user_id", default_user_id).order("created_at", desc=True).execute()
+        result = supabase.table("food_logs").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
         
         # Transform database format to frontend format
         history_data = []

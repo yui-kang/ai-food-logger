@@ -8,11 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import Navbar from "@/components/Navbar"
+import ProtectedRoute from "@/components/ProtectedRoute"
+import { useAuth } from "@/context/AuthContext"
+import { supabase } from "@/lib/supabase"
 
 export default function LogPage() {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
+  const { user } = useAuth()
 
   const handleSubmit = async () => {
     if (!input.trim()) return
@@ -20,15 +24,20 @@ export default function LogPage() {
     setResult(null)
 
     try {
-      // Debug: Log the API URL being used
+      // Get auth token for API calls
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-      console.log("🐛 API URL:", apiUrl)
-      console.log("🐛 Full endpoint:", `${apiUrl}/log/food`)
       
-      // Direct call to backend
+      // Call backend with auth token
       const response = await axios.post(`${apiUrl}/log/food`, {
         raw_text: input,
         mood_rating: 5 // Default for now
+      }, {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
       })
 
       setResult(response.data)
@@ -43,9 +52,10 @@ export default function LogPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar />
-      <main className="container mx-auto py-10 px-4">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-slate-50">
+        <Navbar />
+        <main className="container mx-auto py-10 px-4">
         <div className="max-w-2xl mx-auto space-y-8">
           
           <div className="space-y-2">
@@ -128,6 +138,7 @@ export default function LogPage() {
 
         </div>
       </main>
-    </div>
+      </div>
+    </ProtectedRoute>
   )
 }
