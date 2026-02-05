@@ -11,7 +11,7 @@ import Navbar from "@/components/Navbar"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import { useAuth } from "@/context/AuthContext"
 import { supabase } from "@/lib/supabase"
-import { Search, Calendar, TrendingUp, Loader2, Pencil, Trash2, RefreshCw, Calculator } from "lucide-react"
+import { Search, Calendar, TrendingUp, Loader2, Pencil, Trash2, RefreshCw, Calculator, List, Plus, X } from "lucide-react"
 
 export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -34,6 +34,11 @@ export default function HistoryPage() {
     total_carbs: 0,
     total_fat: 0
   })
+
+  // Item editing state  
+  const [editingItemsId, setEditingItemsId] = useState<number | null>(null)
+  const [editItems, setEditItems] = useState<any[]>([])
+  const [recalculateTotals, setRecalculateTotals] = useState(true)
 
   // Fetch food history from API
   useEffect(() => {
@@ -168,6 +173,82 @@ export default function HistoryPage() {
   const handleCancelMacrosEdit = () => {
     setEditingMacrosId(null)
     setEditMacros({ total_calories: 0, total_protein: 0, total_carbs: 0, total_fat: 0 })
+  }
+
+  // Edit items
+  const handleEditItems = (log: any) => {
+    setEditingItemsId(log.id)
+    setEditItems(log.items || [])
+  }
+
+  const handleSaveItems = async (entryId: number) => {
+    try {
+      setUpdating(entryId)
+      
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      
+      const response = await axios.patch(`${apiUrl}/entries/${entryId}/items`, {
+        items: editItems,
+        recalculate_totals: recalculateTotals
+      }, {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
+      })
+      
+      // Update local state optimistically
+      setFoodLogs(prev => prev.map(log => {
+        if (log.id === entryId) {
+          const updated = { ...log, items: editItems }
+          // If we recalculated totals, update them too
+          if (response.data.macros) {
+            updated.total_calories = response.data.macros.total_calories
+            updated.total_protein = response.data.macros.total_protein
+            updated.total_carbs = response.data.macros.total_carbs  
+            updated.total_fat = response.data.macros.total_fat
+          }
+          return updated
+        }
+        return log
+      }))
+      
+      setEditingItemsId(null)
+      setEditItems([])
+      
+    } catch (err: any) {
+      console.error("Items update failed:", err)
+      alert("Failed to update items: " + (err.response?.data?.detail || "Unknown error"))
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const handleCancelItemsEdit = () => {
+    setEditingItemsId(null)
+    setEditItems([])
+  }
+
+  const addNewItem = () => {
+    setEditItems(prev => [...prev, {
+      name: "",
+      quantity: "",
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0
+    }])
+  }
+
+  const removeItem = (index: number) => {
+    setEditItems(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const updateItem = (index: number, field: string, value: any) => {
+    setEditItems(prev => prev.map((item, i) => 
+      i === index ? { ...item, [field]: value } : item
+    ))
   }
 
   // Delete entry
@@ -399,8 +480,18 @@ export default function HistoryPage() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          onClick={() => handleEditItems(log)}
+                          disabled={updating === log.id || reanalyzing === log.id || editingMacrosId === log.id || editingItemsId === log.id}
+                          title="Edit food items"
+                        >
+                          <List className="h-4 w-4" />
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           onClick={() => handleEditMacros(log)}
-                          disabled={updating === log.id || reanalyzing === log.id || editingMacrosId === log.id}
+                          disabled={updating === log.id || reanalyzing === log.id || editingMacrosId === log.id || editingItemsId === log.id}
                           title="Edit macros"
                         >
                           <Calculator className="h-4 w-4" />
@@ -410,7 +501,7 @@ export default function HistoryPage() {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleEdit(log)}
-                          disabled={updating === log.id || reanalyzing === log.id || editingMacrosId === log.id}
+                          disabled={updating === log.id || reanalyzing === log.id || editingMacrosId === log.id || editingItemsId === log.id}
                           title="Edit entry"
                         >
                           <Pencil className="h-4 w-4" />
@@ -567,17 +658,146 @@ export default function HistoryPage() {
                     )}
                   </div>
                   
-                  {/* Food Items */}
+                  {/* Food Items - Editable or Display */}
                   <div>
-                    <h4 className="font-semibold mb-2 text-sm">Items:</h4>
-                    <ul className="text-sm space-y-1">
-                      {log.items?.map((item: any, index: number) => (
-                        <li key={index} className="flex justify-between">
-                          <span>{item.name} ({item.quantity})</span>
-                          <span className="text-gray-500">{item.calories} cal</span>
-                        </li>
-                      )) || []}
-                    </ul>
+                    {editingItemsId === log.id ? (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-semibold text-sm">Edit Food Items:</h4>
+                          <div className="flex items-center gap-2">
+                            <label className="text-sm text-gray-600 flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={recalculateTotals}
+                                onChange={(e) => setRecalculateTotals(e.target.checked)}
+                              />
+                              Auto-recalculate totals
+                            </label>
+                            <Button size="sm" variant="outline" onClick={addNewItem}>
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Item
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {editItems.map((item, index) => (
+                            <div key={index} className="grid grid-cols-12 gap-2 items-center bg-white p-3 rounded border">
+                              <div className="col-span-3">
+                                <label className="text-xs text-gray-500 block">Name</label>
+                                <Input
+                                  value={item.name}
+                                  onChange={(e) => updateItem(index, 'name', e.target.value)}
+                                  placeholder="Food name"
+                                  className="text-sm"
+                                />
+                              </div>
+                              
+                              <div className="col-span-2">
+                                <label className="text-xs text-gray-500 block">Quantity</label>
+                                <Input
+                                  value={item.quantity}
+                                  onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                                  placeholder="150g"
+                                  className="text-sm"
+                                />
+                              </div>
+                              
+                              <div className="col-span-1">
+                                <label className="text-xs text-gray-500 block">Cal</label>
+                                <Input
+                                  type="number"
+                                  value={item.calories}
+                                  onChange={(e) => updateItem(index, 'calories', parseInt(e.target.value) || 0)}
+                                  className="text-sm"
+                                />
+                              </div>
+                              
+                              <div className="col-span-1">
+                                <label className="text-xs text-gray-500 block">P</label>
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  value={item.protein}
+                                  onChange={(e) => updateItem(index, 'protein', parseFloat(e.target.value) || 0)}
+                                  className="text-sm"
+                                />
+                              </div>
+                              
+                              <div className="col-span-1">
+                                <label className="text-xs text-gray-500 block">C</label>
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  value={item.carbs}
+                                  onChange={(e) => updateItem(index, 'carbs', parseFloat(e.target.value) || 0)}
+                                  className="text-sm"
+                                />
+                              </div>
+                              
+                              <div className="col-span-1">
+                                <label className="text-xs text-gray-500 block">F</label>
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  value={item.fat}
+                                  onChange={(e) => updateItem(index, 'fat', parseFloat(e.target.value) || 0)}
+                                  className="text-sm"
+                                />
+                              </div>
+                              
+                              <div className="col-span-2 flex gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => removeItem(index)}
+                                  className="text-red-600 hover:text-red-700 p-1"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveItems(log.id)}
+                            disabled={updating === log.id}
+                          >
+                            {updating === log.id ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save Items"
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleCancelItemsEdit}
+                            disabled={updating === log.id}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <h4 className="font-semibold mb-2 text-sm">Items:</h4>
+                        <ul className="text-sm space-y-1">
+                          {log.items?.map((item: any, index: number) => (
+                            <li key={index} className="flex justify-between">
+                              <span>{item.name} ({item.quantity})</span>
+                              <span className="text-gray-500">{item.calories} cal</span>
+                            </li>
+                          )) || []}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -46,6 +46,18 @@ class MacroUpdate(BaseModel):
     total_carbs: Optional[float] = None
     total_fat: Optional[float] = None
 
+class FoodItem(BaseModel):
+    name: str
+    quantity: str
+    calories: int
+    protein: float = 0
+    carbs: float = 0
+    fat: float = 0
+
+class ItemsUpdate(BaseModel):
+    items: List[FoodItem]
+    recalculate_totals: bool = True
+
 def verify_token(authorization: Optional[str] = Header(None)) -> str:
     """Extract and verify JWT token using Supabase client, return user_id"""
     # Default user for backwards compatibility (if no auth header)
@@ -330,6 +342,63 @@ async def update_macros(entry_id: str, macros: MacroUpdate, user_id: str = Depen
     except Exception as e:
         print(f"✗ Macro update failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update macros: {str(e)}")
+
+@app.patch("/entries/{entry_id}/items")
+async def update_items(entry_id: str, items_update: ItemsUpdate, user_id: str = Depends(verify_token)):
+    """Update food items for an existing entry"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    try:
+        # Verify entry exists and belongs to user
+        existing_entry = supabase.table("food_logs").select("*").eq("id", entry_id).eq("user_id", user_id).execute()
+        if not existing_entry.data:
+            raise HTTPException(status_code=404, detail="Entry not found or access denied")
+        
+        # Convert items to dict format
+        items_data = [item.dict() for item in items_update.items]
+        
+        # Calculate totals from items if requested
+        updated_macros = None
+        if items_update.recalculate_totals:
+            updated_macros = {
+                "total_calories": sum(item.calories for item in items_update.items),
+                "total_protein": sum(item.protein for item in items_update.items), 
+                "total_carbs": sum(item.carbs for item in items_update.items),
+                "total_fat": sum(item.fat for item in items_update.items)
+            }
+        
+        # Update parsed content
+        current_parsed = existing_entry.data[0].get("parsed_content", {})
+        updated_parsed = current_parsed.copy()
+        updated_parsed["items"] = items_data
+        
+        update_data = {
+            "parsed_content": updated_parsed,
+            "updated_at": "now()"
+        }
+        
+        # Also update macros if recalculating
+        if updated_macros:
+            update_data["macros"] = updated_macros
+        
+        result = supabase.table("food_logs").update(update_data).eq("id", entry_id).eq("user_id", user_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Entry not found")
+            
+        return {
+            "status": "success", 
+            "message": "Items updated successfully", 
+            "items": items_data,
+            "macros": updated_macros
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"✗ Items update failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update items: {str(e)}")
 
 @app.get("/health")
 def health_check():
