@@ -40,6 +40,12 @@ class FoodLogEntry(BaseModel):
     image_url: Optional[str] = None
     mood_rating: Optional[int] = None
 
+class MacroUpdate(BaseModel):
+    total_calories: Optional[int] = None
+    total_protein: Optional[float] = None
+    total_carbs: Optional[float] = None
+    total_fat: Optional[float] = None
+
 def verify_token(authorization: Optional[str] = Header(None)) -> str:
     """Extract and verify JWT token using Supabase client, return user_id"""
     # Default user for backwards compatibility (if no auth header)
@@ -279,6 +285,51 @@ async def reanalyze_food_entry(entry_id: str, user_id: str = Depends(verify_toke
     except Exception as e:
         print(f"✗ Re-analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to re-analyze entry: {str(e)}")
+
+@app.patch("/entries/{entry_id}/macros")
+async def update_macros(entry_id: str, macros: MacroUpdate, user_id: str = Depends(verify_token)):
+    """Update macros for an existing food log entry"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    try:
+        # Verify entry exists and belongs to user
+        existing_entry = supabase.table("food_logs").select("*").eq("id", entry_id).eq("user_id", user_id).execute()
+        if not existing_entry.data:
+            raise HTTPException(status_code=404, detail="Entry not found or access denied")
+        
+        # Get current macros and update only provided values
+        current_macros = existing_entry.data[0].get("macros", {})
+        updated_macros = current_macros.copy()
+        
+        # Only update provided values
+        if macros.total_calories is not None:
+            updated_macros["total_calories"] = macros.total_calories
+        if macros.total_protein is not None:
+            updated_macros["total_protein"] = macros.total_protein
+        if macros.total_carbs is not None:
+            updated_macros["total_carbs"] = macros.total_carbs
+        if macros.total_fat is not None:
+            updated_macros["total_fat"] = macros.total_fat
+        
+        # Update database
+        update_data = {
+            "macros": updated_macros,
+            "updated_at": "now()"
+        }
+        
+        result = supabase.table("food_logs").update(update_data).eq("id", entry_id).eq("user_id", user_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Entry not found")
+            
+        return {"status": "success", "message": "Macros updated successfully", "macros": updated_macros}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"✗ Macro update failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update macros: {str(e)}")
 
 @app.get("/health")
 def health_check():

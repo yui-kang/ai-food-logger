@@ -11,7 +11,7 @@ import Navbar from "@/components/Navbar"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import { useAuth } from "@/context/AuthContext"
 import { supabase } from "@/lib/supabase"
-import { Search, Calendar, TrendingUp, Loader2, Pencil, Trash2, RefreshCw } from "lucide-react"
+import { Search, Calendar, TrendingUp, Loader2, Pencil, Trash2, RefreshCw, Calculator } from "lucide-react"
 
 export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -25,6 +25,15 @@ export default function HistoryPage() {
   const [editText, setEditText] = useState("")
   const [updating, setUpdating] = useState<number | null>(null)
   const [reanalyzing, setReanalyzing] = useState<number | null>(null)
+  
+  // Macro editing state
+  const [editingMacrosId, setEditingMacrosId] = useState<number | null>(null)
+  const [editMacros, setEditMacros] = useState({
+    total_calories: 0,
+    total_protein: 0,
+    total_carbs: 0,
+    total_fat: 0
+  })
 
   // Fetch food history from API
   useEffect(() => {
@@ -106,6 +115,59 @@ export default function HistoryPage() {
   const handleCancelEdit = () => {
     setEditingId(null)
     setEditText("")
+  }
+
+  // Edit macros
+  const handleEditMacros = (log: any) => {
+    setEditingMacrosId(log.id)
+    setEditMacros({
+      total_calories: log.total_calories || 0,
+      total_protein: log.total_protein || 0,
+      total_carbs: log.total_carbs || 0,
+      total_fat: log.total_fat || 0
+    })
+  }
+
+  const handleSaveMacros = async (entryId: number) => {
+    try {
+      setUpdating(entryId)
+      
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      
+      await axios.patch(`${apiUrl}/entries/${entryId}/macros`, editMacros, {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
+      })
+      
+      // Update local state optimistically
+      setFoodLogs(prev => prev.map(log => 
+        log.id === entryId 
+          ? { 
+              ...log, 
+              total_calories: editMacros.total_calories,
+              total_protein: editMacros.total_protein,
+              total_carbs: editMacros.total_carbs,
+              total_fat: editMacros.total_fat
+            }
+          : log
+      ))
+      
+      setEditingMacrosId(null)
+      
+    } catch (err: any) {
+      console.error("Macro update failed:", err)
+      alert("Failed to update macros: " + (err.response?.data?.detail || "Unknown error"))
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const handleCancelMacrosEdit = () => {
+    setEditingMacrosId(null)
+    setEditMacros({ total_calories: 0, total_protein: 0, total_carbs: 0, total_fat: 0 })
   }
 
   // Delete entry
@@ -337,8 +399,18 @@ export default function HistoryPage() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          onClick={() => handleEditMacros(log)}
+                          disabled={updating === log.id || reanalyzing === log.id || editingMacrosId === log.id}
+                          title="Edit macros"
+                        >
+                          <Calculator className="h-4 w-4" />
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           onClick={() => handleEdit(log)}
-                          disabled={updating === log.id || reanalyzing === log.id}
+                          disabled={updating === log.id || reanalyzing === log.id || editingMacrosId === log.id}
                           title="Edit entry"
                         >
                           <Pencil className="h-4 w-4" />
@@ -402,24 +474,97 @@ export default function HistoryPage() {
                     <p className="text-gray-700 italic">"{log.raw_text}"</p>
                   )}
                   
-                  {/* Macros */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-100 p-4 rounded-lg">
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-orange-600">{log.total_calories}</div>
-                      <div className="text-sm text-gray-600">Calories</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-blue-600">{log.total_protein}g</div>
-                      <div className="text-sm text-gray-600">Protein</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-green-600">{log.total_carbs}g</div>
-                      <div className="text-sm text-gray-600">Carbs</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-purple-600">{log.total_fat}g</div>
-                      <div className="text-sm text-gray-600">Fat</div>
-                    </div>
+                  {/* Macros - Editable or Display */}
+                  <div className="bg-slate-100 p-4 rounded-lg">
+                    {editingMacrosId === log.id ? (
+                      <div className="space-y-4">
+                        <h4 className="font-semibold text-sm mb-2">Edit Nutrition Values:</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <label className="text-sm text-gray-600 block mb-1">Calories</label>
+                            <Input
+                              type="number"
+                              value={editMacros.total_calories}
+                              onChange={(e) => setEditMacros(prev => ({ ...prev, total_calories: parseInt(e.target.value) || 0 }))}
+                              className="text-center"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600 block mb-1">Protein (g)</label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={editMacros.total_protein}
+                              onChange={(e) => setEditMacros(prev => ({ ...prev, total_protein: parseFloat(e.target.value) || 0 }))}
+                              className="text-center"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600 block mb-1">Carbs (g)</label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={editMacros.total_carbs}
+                              onChange={(e) => setEditMacros(prev => ({ ...prev, total_carbs: parseFloat(e.target.value) || 0 }))}
+                              className="text-center"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600 block mb-1">Fat (g)</label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={editMacros.total_fat}
+                              onChange={(e) => setEditMacros(prev => ({ ...prev, total_fat: parseFloat(e.target.value) || 0 }))}
+                              className="text-center"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveMacros(log.id)}
+                            disabled={updating === log.id}
+                          >
+                            {updating === log.id ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save Macros"
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleCancelMacrosEdit}
+                            disabled={updating === log.id}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-orange-600">{log.total_calories}</div>
+                          <div className="text-sm text-gray-600">Calories</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-blue-600">{log.total_protein}g</div>
+                          <div className="text-sm text-gray-600">Protein</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-green-600">{log.total_carbs}g</div>
+                          <div className="text-sm text-gray-600">Carbs</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-purple-600">{log.total_fat}g</div>
+                          <div className="text-sm text-gray-600">Fat</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Food Items */}
