@@ -92,8 +92,8 @@ def read_root():
 
 @app.post("/log/food")
 async def log_food(entry: FoodLogEntry, user_id: str = Depends(verify_token)):
-    # Call LLM Service
-    parsed_data = parse_food_entry(entry.raw_text)
+    # Call LLM Service (with optional image)
+    parsed_data = parse_food_entry(entry.raw_text, entry.image_url)
     
     # Save to database if Supabase is configured
     if supabase:

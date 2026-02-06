@@ -11,15 +11,20 @@ import Navbar from "@/components/Navbar"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import { useAuth } from "@/context/AuthContext"
 import { supabase } from "@/lib/supabase"
+import CameraCapture from "@/components/CameraCapture"
 
 export default function LogPage() {
   const [input, setInput] = useState("")
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
   const { user } = useAuth()
 
   const handleSubmit = async () => {
-    if (!input.trim()) return
+    if (!input.trim() && !imageDataUrl) {
+      toast.error("Please provide either text description or photo")
+      return
+    }
     setLoading(true)
     setResult(null)
 
@@ -30,9 +35,10 @@ export default function LogPage() {
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
       
-      // Call backend with auth token
+      // Call backend with auth token and optional image
       const response = await axios.post(`${apiUrl}/log/food`, {
-        raw_text: input,
+        raw_text: input || "Photo of food",
+        image_url: imageDataUrl, // Send base64 data URL directly
         mood_rating: 5 // Default for now
       }, {
         headers: token ? {
@@ -42,6 +48,10 @@ export default function LogPage() {
 
       setResult(response.data)
       toast.success("Meal logged successfully!")
+      
+      // Clear form after success
+      setInput("")
+      setImageDataUrl(null)
     } catch (error: any) {
       console.error("🚨 API Error:", error)
       console.error("🚨 Error details:", error.response?.data || error.message)
@@ -74,13 +84,21 @@ export default function LogPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="food-input">Your Description</Label>
+                <Label htmlFor="food-input">Your Description (Optional)</Label>
                 <Textarea
                   id="food-input"
-                  placeholder="Type or speak here..."
-                  className="min-h-[150px] text-lg"
+                  placeholder="Type or speak here... (optional if using photo)"
+                  className="min-h-[100px] text-lg"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Add Photo (Optional)</Label>
+                <CameraCapture 
+                  onImageCapture={setImageDataUrl}
+                  currentImage={imageDataUrl}
                 />
               </div>
               
@@ -97,7 +115,18 @@ export default function LogPage() {
           {result && (
             <Card className="bg-green-50 border-green-200">
               <CardHeader>
-                <CardTitle className="text-green-800">Analysis Complete</CardTitle>
+                <CardTitle className="text-green-800 flex items-center justify-between">
+                  Analysis Complete
+                  {result.analysis.confidence && (
+                    <span className={`text-sm px-2 py-1 rounded-full ${
+                      result.analysis.confidence === 'high' ? 'bg-green-200 text-green-800' :
+                      result.analysis.confidence === 'medium' ? 'bg-yellow-200 text-yellow-800' :
+                      'bg-red-200 text-red-800'
+                    }`}>
+                      {result.analysis.confidence} confidence
+                    </span>
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-green-900">
                 <div>
@@ -126,7 +155,7 @@ export default function LogPage() {
                   <h3 className="font-semibold mb-2">Detected Items</h3>
                   <ul className="list-disc list-inside space-y-1">
                     {result.analysis.items.map((item: any, i: number) => (
-                      <li key={i}>
+                      <li key={i} className={item.name === 'unable to identify' ? 'text-red-600' : ''}>
                         {item.name} ({item.quantity}) - {item.calories} kcal
                       </li>
                     ))}
