@@ -168,6 +168,7 @@ async def get_food_history(user_id: str = Depends(verify_token)):
                 "date": log["created_at"][:10],  # Extract date part
                 "time": log["created_at"][11:16],  # Extract time part (HH:MM)
                 "raw_text": log["raw_input"],
+                "image_url": log.get("image_url"),  # Include image if available
                 "mood_analysis": parsed_content.get("mood_analysis", "neutral"),
                 "total_calories": macros.get("total_calories", 0),
                 "total_protein": macros.get("total_protein", 0),

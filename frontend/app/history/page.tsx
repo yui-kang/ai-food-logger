@@ -12,6 +12,8 @@ import ProtectedRoute from "@/components/ProtectedRoute"
 import { useAuth } from "@/context/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { Search, Calendar, TrendingUp, Loader2, Pencil, Trash2, RefreshCw, Calculator, List, Plus, X } from "lucide-react"
+import Image from "next/image"
+import ImageModal from "@/components/ImageModal"
 
 export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -454,9 +456,29 @@ export default function HistoryPage() {
               <Card key={log.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">{log.date}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{log.time}</p>
+                    <div className="flex items-center gap-3">
+                      {/* Image thumbnail if available */}
+                      {log.image_url && (
+                        <ImageModal
+                          src={log.image_url}
+                          alt={`Food photo from ${log.date} ${log.time}`}
+                          trigger={
+                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 hover:ring-2 hover:ring-blue-500 transition-all">
+                              <Image 
+                                src={log.image_url} 
+                                alt="Food photo" 
+                                width={64} 
+                                height={64}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          }
+                        />
+                      )}
+                      <div>
+                        <CardTitle className="text-lg">{log.date}</CardTitle>
+                        <p className="text-sm text-muted-foreground">{log.time}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{log.mood_analysis}</Badge>

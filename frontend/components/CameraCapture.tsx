@@ -43,6 +43,32 @@ export default function CameraCapture({ onImageCapture, currentImage }: CameraCa
     setIsCapturing(false)
   }
 
+  const compressImage = (canvas: HTMLCanvasElement, maxWidth = 800, quality = 0.7): string => {
+    // Resize if needed
+    const originalWidth = canvas.width
+    const originalHeight = canvas.height
+    
+    if (originalWidth <= maxWidth) {
+      return canvas.toDataURL("image/jpeg", quality)
+    }
+    
+    const ratio = maxWidth / originalWidth
+    const newHeight = originalHeight * ratio
+    
+    // Create temporary canvas for resizing
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = maxWidth
+    tempCanvas.height = newHeight
+    
+    const tempCtx = tempCanvas.getContext('2d')
+    if (tempCtx) {
+      tempCtx.drawImage(canvas, 0, 0, maxWidth, newHeight)
+      return tempCanvas.toDataURL("image/jpeg", quality)
+    }
+    
+    return canvas.toDataURL("image/jpeg", quality)
+  }
+
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current
@@ -54,8 +80,8 @@ export default function CameraCapture({ onImageCapture, currentImage }: CameraCa
       const ctx = canvas.getContext("2d")
       if (ctx) {
         ctx.drawImage(video, 0, 0)
-        const imageDataUrl = canvas.toDataURL("image/jpeg", 0.8) // Compress to reduce API costs
-        onImageCapture(imageDataUrl)
+        const compressedImageDataUrl = compressImage(canvas, 800, 0.7) // Max 800px width, 70% quality
+        onImageCapture(compressedImageDataUrl)
         stopCamera()
       }
     }
@@ -67,7 +93,22 @@ export default function CameraCapture({ onImageCapture, currentImage }: CameraCa
       const reader = new FileReader()
       reader.onload = (e) => {
         const result = e.target?.result as string
-        onImageCapture(result)
+        
+        // Compress uploaded image too
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          canvas.width = img.width
+          canvas.height = img.height
+          
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            ctx.drawImage(img, 0, 0)
+            const compressedImageDataUrl = compressImage(canvas, 800, 0.7)
+            onImageCapture(compressedImageDataUrl)
+          }
+        }
+        img.src = result
       }
       reader.readAsDataURL(file)
     }
