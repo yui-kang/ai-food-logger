@@ -212,8 +212,7 @@ async def update_food_entry(entry_id: str, entry: FoodLogEntry, user_id: str = D
         update_data = {
             "raw_input": entry.raw_text,
             "image_url": entry.image_url,
-            "mood_rating": entry.mood_rating,
-            "updated_at": "now()"
+            "mood_rating": entry.mood_rating
         }
         
         result = supabase.table("food_logs").update(update_data).eq("id", entry_id).eq("user_id", user_id).execute()
@@ -279,8 +278,7 @@ async def reanalyze_food_entry(entry_id: str, user_id: str = Depends(verify_toke
                 "total_protein": parsed_data.get("total_protein", 0),
                 "total_carbs": parsed_data.get("total_carbs", 0),
                 "total_fat": parsed_data.get("total_fat", 0)
-            },
-            "updated_at": "now()"
+            }
         }
         
         result = supabase.table("food_logs").update(update_data).eq("id", entry_id).eq("user_id", user_id).execute()
@@ -326,8 +324,7 @@ async def update_macros(entry_id: str, macros: MacroUpdate, user_id: str = Depen
         
         # Update database
         update_data = {
-            "macros": updated_macros,
-            "updated_at": "now()"
+            "macros": updated_macros
         }
         
         result = supabase.table("food_logs").update(update_data).eq("id", entry_id).eq("user_id", user_id).execute()
@@ -374,8 +371,7 @@ async def update_items(entry_id: str, items_update: ItemsUpdate, user_id: str = 
         updated_parsed["items"] = items_data
         
         update_data = {
-            "parsed_content": updated_parsed,
-            "updated_at": "now()"
+            "parsed_content": updated_parsed
         }
         
         # Also update macros if recalculating
